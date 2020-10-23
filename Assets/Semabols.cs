@@ -26,37 +26,41 @@ public class Semabols : MonoBehaviour {
         static int stage;
         public static int moduleId;
         static bool solved;
-        static Semaphore[] moduleSemaphores;
+        public static Semaphore[] moduleSemaphores;
         string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         public Semaphore semaphore = new Semaphore();
         public SpriteRenderer renderer;
         public KMSelectable selectable;
         public Sprite symbol;
-        public void PressSymbol()
+        public KMSelectable.OnInteractHandler PressSymbol()
         {
-            if (!solved)
+            return delegate
             {
-                selectable.AddInteractionPunch();
-                Debug.LogFormat("[Semabols #{0}] You pressed the symbol corresponding to {1}.", moduleId, alphabet[Array.IndexOf(semaphores, semaphore)]);
-                if (semaphore.Equals(moduleSemaphores[stage]))
+                if (!solved)
                 {
-                    stage++;
-                    Debug.LogFormat("[Semabols #{0}] That was correct.", moduleId);
-                    if (stage == 4)
+                    selectable.AddInteractionPunch();
+                    Debug.LogFormat("[Semabols #{0}] You pressed the symbol corresponding to {1}.", moduleId, alphabet[Array.IndexOf(semaphores, semaphore)]);
+                    if (semaphore.Equals(moduleSemaphores[stage]))
                     {
-                        module.HandlePass();
-                        sound.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.CorrectChime, transform);
-                        Debug.LogFormat("[Semabols #{0}] Module solved.", moduleId);
-                        solved = true;
+                        stage++;
+                        Debug.LogFormat("[Semabols #{0}] That was correct.", moduleId);
+                        if (stage == 4)
+                        {
+                            module.HandlePass();
+                            sound.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.CorrectChime, transform);
+                            Debug.LogFormat("[Semabols #{0}] Module solved.", moduleId);
+                            solved = true;
+                        }
+                    }
+                    else
+                    {
+                        stage = 0;
+                        module.HandleStrike();
+                        Debug.LogFormat("[Semabols #{0}] That was incorrect. Strike!", moduleId);
                     }
                 }
-                else
-                {
-                    stage = 0;
-                    module.HandleStrike();
-                    Debug.LogFormat("[Semabols #{0}] That was incorrect. Strike!", moduleId);
-                }
-            }
+                return false;
+            };
         }
     }
     public struct Semaphore
@@ -210,6 +214,7 @@ public class Semabols : MonoBehaviour {
                 }
             }
         }
+        InnerSymbol.moduleSemaphores = moduleSemaphores;
     }
     bool TestForbiddenIndices(int testIndex) {
         foreach (Semaphore semaphore in moduleSemaphores)
@@ -228,30 +233,33 @@ public class Semabols : MonoBehaviour {
         int index = 0;
         for (int i = 0; i < 8; i++)
         {
-            int j = i;
-            outerSymbols[j].renderer = outerSymbolRenderers[j];
-            for (int k = 0; j < 4; j++)
+            outerSymbols[i].renderer = outerSymbolRenderers[i];
+            for (int j = 0; j < 4; j++)
             {
-                outerSymbols[j].leds[k] = leds[index];
+                outerSymbols[i].leds[j] = leds[index];
                 index++;                
             }
         }
         for (int i = 0; i < 6; i++)
         {
             int j = i;
-            innerSymbols[j].renderer = innerSymbolRenderers[j];
-            innerSymbols[j].selectable = innerSymbolSelectables[j];
-            innerSymbolSelectables[j].OnInteract += delegate { innerSymbols[j].PressSymbol(); return false; };
+            innerSymbols[i].renderer = innerSymbolRenderers[i];
+            innerSymbols[i].selectable = innerSymbolSelectables[i];
+            innerSymbolSelectables[j].OnInteract += innerSymbols[j].PressSymbol();
         }
+        module.OnActivate += Activate();
     }
-    // Use this for initialization
-    void Start () {
-		for (int i = 0; i < 8; i++)
+
+    KMBombModule.KMModuleActivateEvent Activate () {
+        return delegate
         {
-            if (i < 6) innerSymbols[i].renderer.sprite = innerSymbols[i].symbol;
-            outerSymbols[i].renderer.sprite = outerSymbols[i].symbol;
-            for (int j = 0; j < 4; j++) outerSymbols[i].leds[j].SetActive(outerSymbols[i].ledsActive[j]);
-        }
+            for (int i = 0; i < 8; i++)
+            {
+                if (i < 6) innerSymbols[i].renderer.sprite = innerSymbols[i].symbol;
+                outerSymbols[i].renderer.sprite = outerSymbols[i].symbol;
+                for (int j = 0; j < 4; j++) outerSymbols[i].leds[j].SetActive(outerSymbols[i].ledsActive[j]);
+            }
+        };
 	}
 
 }
