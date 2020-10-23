@@ -128,6 +128,7 @@ public class Semabols : MonoBehaviour {
         BuildCube();
         CreateCrossSection();
         PickSemaphore();
+        PrepareStart();
     }
     void BuildCube()
     {
