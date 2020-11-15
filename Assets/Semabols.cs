@@ -4,7 +4,8 @@ using UnityEngine;
 using rnd = UnityEngine.Random;
 using System;
 using System.Linq;
-using KModkit;
+using System.Text.RegularExpressions;
+
 public class Semabols : MonoBehaviour {
     public Sprite[] symbols;
     public GameObject[] leds;
@@ -20,48 +21,9 @@ public class Semabols : MonoBehaviour {
     }
     public class InnerSymbol
     {
-        public static KMBombModule module;
-        public static KMAudio sound;
-        public static Transform transform;
-        static int stage;
-        public static int moduleId;
-        static bool solved;
-        public static Semaphore[] moduleSemaphores;
-        string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         public Semaphore semaphore = new Semaphore();
         public SpriteRenderer renderer;
-        public KMSelectable selectable;
         public Sprite symbol;
-        public KMSelectable.OnInteractHandler PressSymbol()
-        {
-            return delegate
-            {
-                if (!solved)
-                {
-                    selectable.AddInteractionPunch();
-                    Debug.LogFormat("[Semabols #{0}] You pressed the symbol corresponding to {1}.", moduleId, alphabet[Array.IndexOf(semaphores, semaphore)]);
-                    if (semaphore.Equals(moduleSemaphores[stage]))
-                    {
-                        stage++;
-                        Debug.LogFormat("[Semabols #{0}] That was correct.", moduleId);
-                        if (stage == 4)
-                        {
-                            module.HandlePass();
-                            sound.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.CorrectChime, transform);
-                            Debug.LogFormat("[Semabols #{0}] Module solved.", moduleId);
-                            solved = true;
-                        }
-                    }
-                    else
-                    {
-                        stage = 0;
-                        module.HandleStrike();
-                        Debug.LogFormat("[Semabols #{0}] That was incorrect. Strike!", moduleId);
-                    }
-                }
-                return false;
-            };
-        }
     }
     public struct Semaphore
     {
@@ -109,7 +71,7 @@ public class Semabols : MonoBehaviour {
     new Semaphore(new int[] {2, 4}, new int[] {2,1,2}, 21),
     new Semaphore(new int[] {2, 7}, new int[] {2,2,0}, 6),
     new Semaphore(new int[] {0, 4}, new int[] {2,2,1}, 12),
-    new Semaphore(new int[] {4, 7}, new int[] {2,2,1}, 5),
+    new Semaphore(new int[] {4, 7}, new int[] {2,2,2}, 5),
     };
     Semaphore[] moduleSemaphores = new Semaphore[6];
     OuterSymbol[] outerSymbols = new OuterSymbol[] { new OuterSymbol(), new OuterSymbol(), new OuterSymbol(), new OuterSymbol(), new OuterSymbol(), new OuterSymbol(), new OuterSymbol(), new OuterSymbol() };
@@ -117,6 +79,8 @@ public class Semabols : MonoBehaviour {
     Sprite[][][] cubeLayers = new Sprite[9][][];
     Sprite[][][] cube = new Sprite[3][][];
     string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    int stage;
+    bool solved;
     public KMBombModule module;
     public KMAudio sound;
     int moduleId;
@@ -125,10 +89,9 @@ public class Semabols : MonoBehaviour {
     private void Awake()
     {
         moduleId = moduleIdCounter++;
-        InnerSymbol.moduleId = moduleId;
-        InnerSymbol.module = module;
-        InnerSymbol.sound = sound;
-        InnerSymbol.transform = transform;
+    }
+    private void Start()
+    {
         BuildCube();
         CreateCrossSection();
         PickSemaphore();
@@ -145,12 +108,12 @@ public class Semabols : MonoBehaviour {
                 cubeLayers[i][j] = new Sprite[3];
                 for (int k = 0; k < 3; k++)
                 {
-                    index++;
                     cubeLayers[i][j][k] = symbols[index];
+                    index++;
                 }
             }
         }
-        IEnumerable layers = Enumerable.Range(0, 8).ToList().Shuffle().Take(3);
+        IEnumerable layers = Enumerable.Range(0, 9).ToList().Shuffle().Take(3);
         int l = 0;
         foreach (int layer in layers)
         {
@@ -164,7 +127,7 @@ public class Semabols : MonoBehaviour {
         int axis = rnd.Range(0, 2);
         int slice = rnd.Range(0, 3);
         int index = 0;
-        Debug.LogFormat("[Semabols #{0}] The cross section is along the {1} axis and is at coordinate {2}.", moduleId, axes[axis], slice + 1);
+        Debug.LogFormat("[Semabols #{0}] The cross-section is along the {1} axis and is at coordinate {2}.", moduleId, axes[axis], slice + 1);
         for (int i = 0; i < 3; i++)
         {
             switch (axis)
@@ -199,7 +162,7 @@ public class Semabols : MonoBehaviour {
         for (int i = 0; i < 6; i++)
         {
             int candidateSemaphoreIndex = rnd.Range(0, 26);
-            while (chosenSemaphoreIndices.Contains(candidateSemaphoreIndex) || (forbiddenSemaphoreIndices.Contains(candidateSemaphoreIndex) && TestForbiddenIndices(candidateSemaphoreIndex) && i > 2)) candidateSemaphoreIndex = rnd.Range(0, 26);
+            while (chosenSemaphoreIndices.Contains(candidateSemaphoreIndex) || (forbiddenSemaphoreIndices.Contains(candidateSemaphoreIndex) && TestForbiddenIndices(candidateSemaphoreIndex) && i > 3)) candidateSemaphoreIndex = rnd.Range(0, 26);
             chosenSemaphoreIndices.Add(candidateSemaphoreIndex);
             if (semaphores[candidateSemaphoreIndex].forbiddenSemaphoreIndices.Count() != 0) forbiddenSemaphoreIndices.Add(semaphores[candidateSemaphoreIndex].forbiddenSemaphoreIndices[0]);
             moduleSemaphores[i] = semaphores[candidateSemaphoreIndex];
@@ -214,7 +177,6 @@ public class Semabols : MonoBehaviour {
                 }
             }
         }
-        InnerSymbol.moduleSemaphores = moduleSemaphores;
     }
     bool TestForbiddenIndices(int testIndex) {
         foreach (Semaphore semaphore in moduleSemaphores)
@@ -244,22 +206,99 @@ public class Semabols : MonoBehaviour {
         {
             int j = i;
             innerSymbols[i].renderer = innerSymbolRenderers[i];
-            innerSymbols[i].selectable = innerSymbolSelectables[i];
-            innerSymbolSelectables[j].OnInteract += innerSymbols[j].PressSymbol();
+            innerSymbolSelectables[j].OnInteract += delegate () { PressSymbol(innerSymbolSelectables[j]); return false; };
         }
-        module.OnActivate += Activate();
+        module.OnActivate += Activate;
+    }
+    void PressSymbol(KMSelectable symbol)
+    {
+        if (!solved)
+        {
+            symbol.AddInteractionPunch();
+            Debug.LogFormat("[Semabols #{0}] You pressed the symbol corresponding to {1}.", moduleId, alphabet[Array.IndexOf(semaphores, innerSymbols[Array.IndexOf(innerSymbolSelectables, symbol)].semaphore)]);
+            if (innerSymbols[Array.IndexOf(innerSymbolSelectables, symbol)].semaphore.Equals(moduleSemaphores[stage]))
+            {
+                stage++;
+                Debug.LogFormat("[Semabols #{0}] That was correct.", moduleId);
+                if (stage == 4)
+                {
+                    module.HandlePass();
+                    sound.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.CorrectChime, transform);
+                    Debug.LogFormat("[Semabols #{0}] Module solved.", moduleId);
+                    solved = true;
+                }
+            }
+            else
+            {
+                stage = 0;
+                module.HandleStrike();
+                Debug.LogFormat("[Semabols #{0}] That was incorrect. Strike!", moduleId);
+            }
+        }
+    }
+    void Activate() {
+        for (int i = 0; i < 8; i++)
+        {
+            if (i < 6) innerSymbols[i].renderer.sprite = innerSymbols[i].symbol;
+            outerSymbols[i].renderer.sprite = outerSymbols[i].symbol;
+            for (int j = 0; j < 4; j++) outerSymbols[i].leds[j].SetActive(outerSymbols[i].ledsActive[j]);
+        }
     }
 
-    KMBombModule.KMModuleActivateEvent Activate () {
-        return delegate
+    //twitch plays
+    #pragma warning disable 414
+    private readonly string TwitchHelpMessage = @"!{0} press <#> (#)... [Presses the inner symbol in the specified position (optionally include multiple positions)] | Valid positions are 1-6 in reading order";
+    #pragma warning restore 414
+    IEnumerator ProcessTwitchCommand(string command)
+    {
+        string[] parameters = command.Split(' ');
+        if (Regex.IsMatch(parameters[0], @"^\s*press\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
-            for (int i = 0; i < 8; i++)
+            yield return null;
+            if (parameters.Length == 1)
             {
-                if (i < 6) innerSymbols[i].renderer.sprite = innerSymbols[i].symbol;
-                outerSymbols[i].renderer.sprite = outerSymbols[i].symbol;
-                for (int j = 0; j < 4; j++) outerSymbols[i].leds[j].SetActive(outerSymbols[i].ledsActive[j]);
+                yield return "sendtochaterror Please specify the position(s) of the inner symbol(s) you wish to press!";
             }
-        };
-	}
+            else
+            {
+                for (int i = 1; i < parameters.Length; i++)
+                {
+                    int temp = 0;
+                    if (!int.TryParse(parameters[i], out temp))
+                    {
+                        yield return "sendtochaterror The specified position '" + parameters[i] + "' is invalid!";
+                        yield break;
+                    }
+                    if (temp < 1 || temp > 6)
+                    {
+                        yield return "sendtochaterror The specified position '" + parameters[i] + "' is out of range 1-6!";
+                        yield break;
+                    }
+                }
+                for (int i = 1; i < parameters.Length; i++)
+                {
+                    innerSymbolSelectables[int.Parse(parameters[i]) - 1].OnInteract();
+                    yield return new WaitForSeconds(0.1f);
+                }
+            }
+            yield break;
+        }
+    }
 
+    IEnumerator TwitchHandleForcedSolve()
+    {
+        int start = stage;
+        for (int i = start; i < 4; i++)
+        {
+            for (int j = 0; j < 6; j++)
+            {
+                if (innerSymbols[j].semaphore.Equals(moduleSemaphores[i]))
+                {
+                    innerSymbolSelectables[j].OnInteract();
+                    yield return new WaitForSeconds(0.1f);
+                    break;
+                }
+            }
+        }
+    }
 }
