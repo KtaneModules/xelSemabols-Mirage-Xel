@@ -127,7 +127,7 @@ public class Semabols : MonoBehaviour {
         int axis = rnd.Range(0, 2);
         int slice = rnd.Range(0, 3);
         int index = 0;
-        Debug.LogFormat("[Semabols #{0}] The cross section is along the {1} axis and is at coordinate {2}.", moduleId, axes[axis], slice + 1);
+        Debug.LogFormat("[Semabols #{0}] The cross-section is along the {1} axis and is at coordinate {2}.", moduleId, axes[axis], slice + 1);
         for (int i = 0; i < 3; i++)
         {
             switch (axis)
